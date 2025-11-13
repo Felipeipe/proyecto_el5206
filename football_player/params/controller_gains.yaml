@@ -1,0 +1,11 @@
+follower_and_avoider:
+  ros__parameters:
+
+    ball_proportional_gain: 1
+    ball_integral_gain: 1
+    ball_derivative_gain: 1
+    
+    person_proportional_gain: 1
+    person_integral_gain: 1
+    person_derivative_gain: 1
+    thresh_before_turning: 10000
