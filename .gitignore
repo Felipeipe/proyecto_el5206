@@ -5,7 +5,9 @@ __pycache__/
 
 # C extensions
 *.so
-
+Balon-Person-YOLO-1/
+yolov8-ball-and-player-detection-1/
+runs/
 # Distribution / packaging
 .Python
 build/
