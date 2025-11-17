@@ -11,8 +11,11 @@ class YoloDetector(Node):
     def __init__(self):
         super().__init__('yolo_detector_node')
 
+        self.declare_parameter('pt_path', 'path')
+
+        pt_path = self.get_parameter('pt_path').value
         # Cargar modelo YOLO (fine-tuned)
-        self.model = YOLO('/path/to/best.pt')
+        self.model = YOLO(pt_path)
         self.bridge = CvBridge()
 
         # Suscripción al tópico de la cámara

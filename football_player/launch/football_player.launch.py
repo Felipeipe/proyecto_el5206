@@ -10,6 +10,11 @@ def generate_launch_description():
         "params",
         "controller_gains.yaml"
     ])
+    pt_path = PathJoinSubstitution([
+        FindPackageShare(pkg_name),
+        "params",
+        "best.pt"
+    ])
     controller_node = Node(
         package=pkg_name,
         executable="follow_and_avoid",
@@ -21,7 +26,8 @@ def generate_launch_description():
         package=pkg_name,
         executable="detector",
         name="detector_node",
-        output="screen"
+        output="screen",
+        parameters=[{'pt_path': pt_path}]
     )
     return LaunchDescription([
         controller_node,
