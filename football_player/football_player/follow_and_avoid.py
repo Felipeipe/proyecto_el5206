@@ -66,7 +66,7 @@ class FollowAndAvoid(Node):
         # Procesar detecciones
         for detection in msg.detections:
             for result in detection.results:
-                label = self.id_parser(result.id)
+                label = result.hypothesis.class_id
 
                 cx = detection.bbox.center.position.x
                 area = detection.bbox.size_x * detection.bbox.size_y
@@ -74,7 +74,8 @@ class FollowAndAvoid(Node):
                 if label == 'ball':
                     ball_pose = [cx, area]
                 elif label == 'person':
-                    person_pose = [cx, area]
+                    pass
+                    # person_pose = [cx, area]
 
         # Lógica de comportamiento:
         # 1) Si hay pelota -> seguir
@@ -84,7 +85,8 @@ class FollowAndAvoid(Node):
         if ball_pose is not None:
             lin, ang = self.ball_commands(ball_pose, prev_ball_pose)
         elif person_pose is not None:
-            lin, ang = self.human_commands(person_pose, prev_person_pose)
+            pass
+            # lin, ang = self.human_commands(person_pose, prev_person_pose)
         else:
             lin, ang = (0.0, 0.0)
 
@@ -101,10 +103,17 @@ class FollowAndAvoid(Node):
         mod_angular = angular
 
         if abs(mod_linear) > self.max_linear:
-            mod_linear = self.max_linear * (1 if mod_linear > 0 else -1)
+            
+            if mod_angular > 0:
+                mod_linear = self.max_linear
+            else:
+                mod_linear = -self.max_linear
 
         if abs(mod_angular) > self.max_angular:
-            mod_angular = self.max_angular * (1 if mod_angular > 0 else -1)
+            if mod_angular > 0:
+                mod_angular = self.max_angular
+            else:
+                mod_angular = -self.max_angular
 
         return mod_linear, mod_angular
 
@@ -133,13 +142,13 @@ class FollowAndAvoid(Node):
         if prev_pose is None:
             prev_pose = pose 
 
-        error = self.img_center_x - pose[0]
-        prev_error = self.img_center_x - prev_pose[0]
+        error = self.img_center_x//2 - pose[0]
+        prev_error = self.img_center_x//2 - prev_pose[0]
         delta_error = error - prev_error
         error_sum = error + prev_error
 
         # Girar hacia la pelota
-        angular_vel = -(
+        angular_vel = (
             self.ball_K_p * error +
             self.ball_K_d * delta_error +
             self.ball_K_i * error_sum
@@ -148,18 +157,6 @@ class FollowAndAvoid(Node):
         linear_vel = 0.0  # avanzar según área opcional
 
         return self.vel_limiter(linear_vel, angular_vel)
-
-
-    # ------------------------
-    #    PARSER DE ID (Jazzy)
-    # ------------------------
-    def id_parser(self, val: int):
-        # Ajustar según tus clases del modelo (val = results.id)
-        if val == 1:
-            return 'ball'
-        elif val == 2:
-            return 'person'
-        return 'unknown'
 
 
 def main(args=None):

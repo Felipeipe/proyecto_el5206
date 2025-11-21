@@ -71,7 +71,6 @@ class YoloDetector(Node):
             detections_msg.detections.append(detection)
 
         self.publisher.publish(detections_msg)
-        self.get_logger().info(f"Publicadas {len(detections_msg.detections)} detecciones.")
 
 def main(args=None):
     rclpy.init(args=args)
