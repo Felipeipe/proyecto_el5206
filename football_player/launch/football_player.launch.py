@@ -29,7 +29,15 @@ def generate_launch_description():
         output="screen",
         parameters=[{'pt_path': pt_path}]
     )
+    camera_node = Node(
+        package = 'v4l2_camera',
+        executable='v4l2_camera_node',
+        name='v4l2_camera_node',
+        output='screen',
+        parameters=[{'video_device': '/dev/video4'}]
+    )
     return LaunchDescription([
         controller_node,
-        detection_and_estimation_node
+        detection_and_estimation_node,
+        camera_node
     ])
