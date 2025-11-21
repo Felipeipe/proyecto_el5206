@@ -21,13 +21,17 @@ class YoloDetector(Node):
         # Suscripción al tópico de la cámara
         self.subscription = self.create_subscription(
             Image,
-            '/camera/image_raw',   # ajusta según tu cámara
+            '/image_raw',   # ajusta según tu cámara
             self.image_callback,
             10
         )
 
         # Publicador de detecciones
-        self.publisher = self.create_publisher(Detection2DArray, '/detections', 10)
+        self.publisher = self.create_publisher(
+            Detection2DArray,
+            '/detections',
+            10
+        )
 
         self.get_logger().info("YOLO Detector Node iniciado.")
 

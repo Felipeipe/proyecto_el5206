@@ -7,16 +7,29 @@ from geometry_msgs.msg import Twist
 class FollowAndAvoid(Node):
     def __init__(self):
         super().__init__('follower_and_avoider')
+
+        self.img_center_x = 640  
+
+        # Memoria de posiciones previas
+        self.ball_pose = None
+        self.person_pose = None
+
+        # Subs y pubs
         self.bb_sub = self.create_subscription(
             Detection2DArray,
             '/detections',
             self.listener_callback,
-            10)
+            10
+        )
         self.vel_pub = self.create_publisher(
             Twist,
-            '/cmd_vel', # TODO: modify
+            '/cmd_vel_nav',
             10,
         )
+
+        # Parámetros
+        self.declare_parameter('max_angular', 2.0)
+        self.declare_parameter('max_linear', 1.5)
 
         self.declare_parameter('ball_proportional_gain',    1.0)
         self.declare_parameter('ball_integral_gain',        1.0)
@@ -24,25 +37,37 @@ class FollowAndAvoid(Node):
         self.declare_parameter('person_proportional_gain',  1.0)
         self.declare_parameter('person_integral_gain',      1.0)
         self.declare_parameter('person_derivative_gain',    1.0)
-        self.declare_parameter('thresh_before_turning',   10000)
 
-        ball_K_p = self.get_parameter('ball_proportional_gain').value
-        ball_K_i = self.get_parameter('ball_integral_gain').value
-        ball_K_d = self.get_parameter('ball_derivative_gain').value
-        person_K_p = self.get_parameter('person_proportional_gain').value
-        person_K_i = self.get_parameter('person_integral_gain').value
-        person_K_d = self.get_parameter('person_derivative_gain').value
-        turning_thresh = self.get_parameter('thresh_before_turning').value
+        self.max_angular = self.get_parameter('max_angular').value
+        self.max_linear = self.get_parameter('max_linear').value
 
+        self.ball_K_p = self.get_parameter('ball_proportional_gain').value
+        self.ball_K_i = self.get_parameter('ball_integral_gain').value
+        self.ball_K_d = self.get_parameter('ball_derivative_gain').value
+        self.person_K_p = self.get_parameter('person_proportional_gain').value
+        self.person_K_i = self.get_parameter('person_integral_gain').value
+        self.person_K_d = self.get_parameter('person_derivative_gain').value
+
+
+    # ------------------------
+    #        CALLBACK
+    # ------------------------
     def listener_callback(self, msg: Detection2DArray):
         vel = Twist()
 
+        # Guardar previas
+        prev_ball_pose = self.ball_pose
+        prev_person_pose = self.person_pose
+
+        # Reset actuales
         ball_pose = None
         person_pose = None
 
+        # Procesar detecciones
         for detection in msg.detections:
-            for results in detection.results:
-                label = self.id_parser(results.id)
+            for result in detection.results:
+                label = self.id_parser(result.id)
+
                 cx = detection.bbox.center.position.x
                 area = detection.bbox.size_x * detection.bbox.size_y
 
@@ -51,11 +76,15 @@ class FollowAndAvoid(Node):
                 elif label == 'person':
                     person_pose = [cx, area]
 
-        #  FOLLOW BALL > AVOID PERSON
+        # Lógica de comportamiento:
+        # 1) Si hay pelota -> seguir
+        # 2) Si no hay pelota pero sí persona -> evitar
+        # 3) Si no hay nada -> spin
+
         if ball_pose is not None:
-            lin, ang = self.ball_commands(ball_pose)
+            lin, ang = self.ball_commands(ball_pose, prev_ball_pose)
         elif person_pose is not None:
-            lin, ang = self.human_commands(person_pose)
+            lin, ang = self.human_commands(person_pose, prev_person_pose)
         else:
             lin, ang = (0.0, 0.0)
 
@@ -63,36 +92,74 @@ class FollowAndAvoid(Node):
         vel.angular.z = float(ang)
         self.vel_pub.publish(vel)
 
+        self.ball_pose = ball_pose
+        self.person_pose = person_pose
 
-    def human_commands(self, pose):
-        error = self.img_center_x - pose
 
-        # Control Proporcional (girar lejos del humano)
-        angular_vel = -(self.person_K_p * error) * 0.002  
+    def vel_limiter(self, linear, angular):
+        mod_linear = linear
+        mod_angular = angular
 
-        # Retrocede
-        linear_vel = -0.15/max(pose[1], 1.0)  # Más cerca, más rápido retrocede
+        if abs(mod_linear) > self.max_linear:
+            mod_linear = self.max_linear * (1 if mod_linear > 0 else -1)
 
-        return linear_vel, angular_vel
-    
-    def ball_commands(self, pose):
-        error = self.img_center_x - pose
+        if abs(mod_angular) > self.max_angular:
+            mod_angular = self.max_angular * (1 if mod_angular > 0 else -1)
 
-        # Control Proporcional (girar hacia pelota)
-        angular_vel = (self.ball_K_p * error) * 0.002  
+        return mod_linear, mod_angular
 
-        # Avanzar
-        linear_vel = 0.20/max(pose[1], 1.0)  # Más cerca, más rápido avanza
 
-        return linear_vel, angular_vel
+    def human_commands(self, pose, prev_pose):
+        if prev_pose is None:
+            prev_pose = pose  # evitar None en primer frame
 
-        
-    def id_parser(self, val):
+        error = self.img_center_x - pose[0]
+        prev_error = self.img_center_x - prev_pose[0]
+        delta_error = error - prev_error
+        error_sum = error + prev_error
+
+        angular_vel = -(
+            self.person_K_p * error +
+            self.person_K_d * delta_error +
+            self.person_K_i * error_sum
+        )
+
+        linear_vel = 0.0  # retroceso opcional
+
+        return self.vel_limiter(linear_vel, angular_vel)
+
+
+    def ball_commands(self, pose, prev_pose):
+        if prev_pose is None:
+            prev_pose = pose 
+
+        error = self.img_center_x - pose[0]
+        prev_error = self.img_center_x - prev_pose[0]
+        delta_error = error - prev_error
+        error_sum = error + prev_error
+
+        # Girar hacia la pelota
+        angular_vel = -(
+            self.ball_K_p * error +
+            self.ball_K_d * delta_error +
+            self.ball_K_i * error_sum
+        )
+
+        linear_vel = 0.0  # avanzar según área opcional
+
+        return self.vel_limiter(linear_vel, angular_vel)
+
+
+    # ------------------------
+    #    PARSER DE ID (Jazzy)
+    # ------------------------
+    def id_parser(self, val: int):
+        # Ajustar según tus clases del modelo (val = results.id)
         if val == 1:
             return 'ball'
-        else:
+        elif val == 2:
             return 'person'
-        
+        return 'unknown'
 
 
 def main(args=None):
@@ -101,6 +168,7 @@ def main(args=None):
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
