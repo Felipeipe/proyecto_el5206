@@ -1,19 +1,19 @@
 follower_and_avoider:
   ros__parameters:
-    max_linear: 2.0
-    max_angular: 0.2
+    max_linear: 1.0
+    max_angular: 2.0
+    reference_area: 20000.0
+    linear_ball_proportional_gain: 0.000015
+    linear_ball_integral_gain: 0.0
+    linear_ball_derivative_gain: 0.000015
 
-    linear_ball_proportional_gain: 0.01
-    linear_ball_integral_gain: 1.0
-    linear_ball_derivative_gain: 1.0
-
-    linear_person_proportional_gain: 1.0
+    linear_person_proportional_gain: 0.1
     linear_person_integral_gain: 1.0
     linear_person_derivative_gain: 1.0
 
     angular_ball_proportional_gain: 0.01
-    angular_ball_integral_gain: 0.0
-    angular_ball_derivative_gain: 0.0
+    angular_ball_integral_gain: 0.0001
+    angular_ball_derivative_gain: 0.02
 
     angular_person_proportional_gain: 1.0
     angular_person_integral_gain: 1.0
