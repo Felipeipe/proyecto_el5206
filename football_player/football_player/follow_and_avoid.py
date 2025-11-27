@@ -31,22 +31,35 @@ class FollowAndAvoid(Node):
         self.declare_parameter('max_angular', 2.0)
         self.declare_parameter('max_linear', 1.5)
 
-        self.declare_parameter('ball_proportional_gain',    1.0)
-        self.declare_parameter('ball_integral_gain',        1.0)
-        self.declare_parameter('ball_derivative_gain',      1.0)
-        self.declare_parameter('person_proportional_gain',  1.0)
-        self.declare_parameter('person_integral_gain',      1.0)
-        self.declare_parameter('person_derivative_gain',    1.0)
+        self.declare_parameter('linear_ball_proportional_gain',    1.0)
+        self.declare_parameter('linear_ball_integral_gain',        1.0)
+        self.declare_parameter('linear_ball_derivative_gain',      1.0)
+        self.declare_parameter('linear_person_proportional_gain',  1.0)
+        self.declare_parameter('linear_person_integral_gain',      1.0)
+        self.declare_parameter('linear_person_derivative_gain',    1.0)
+        self.declare_parameter('angular_ball_proportional_gain',    1.0)
+        self.declare_parameter('angular_ball_integral_gain',        1.0)
+        self.declare_parameter('angular_ball_derivative_gain',      1.0)
+        self.declare_parameter('angular_person_proportional_gain',  1.0)
+        self.declare_parameter('angular_person_integral_gain',      1.0)
+        self.declare_parameter('angular_person_derivative_gain',    1.0)
 
         self.max_angular = self.get_parameter('max_angular').value
         self.max_linear = self.get_parameter('max_linear').value
 
-        self.ball_K_p = self.get_parameter('ball_proportional_gain').value
-        self.ball_K_i = self.get_parameter('ball_integral_gain').value
-        self.ball_K_d = self.get_parameter('ball_derivative_gain').value
-        self.person_K_p = self.get_parameter('person_proportional_gain').value
-        self.person_K_i = self.get_parameter('person_integral_gain').value
-        self.person_K_d = self.get_parameter('person_derivative_gain').value
+        self.angular_ball_K_p = self.get_parameter('angular_ball_proportional_gain').value
+        self.angular_ball_K_i = self.get_parameter('angular_ball_integral_gain').value
+        self.angular_ball_K_d = self.get_parameter('angular_ball_derivative_gain').value
+        self.linear_ball_K_p = self.get_parameter('linear_ball_proportional_gain').value
+        self.linear_ball_K_i = self.get_parameter('linear_ball_integral_gain').value
+        self.linear_ball_K_d = self.get_parameter('linear_ball_derivative_gain').value
+
+        self.angular_person_K_p = self.get_parameter('angular_person_proportional_gain').value
+        self.angular_person_K_i = self.get_parameter('angular_person_integral_gain').value
+        self.angular_person_K_d = self.get_parameter('angular_person_derivative_gain').value
+        self.linear_person_K_p = self.get_parameter('linear_person_proportional_gain').value
+        self.linear_person_K_i = self.get_parameter('linear_person_integral_gain').value
+        self.linear_person_K_d = self.get_parameter('linear_person_derivative_gain').value
 
 
     # ------------------------
@@ -81,7 +94,7 @@ class FollowAndAvoid(Node):
         # Lógica de comportamiento:
         # 1) Si hay pelota -> seguir
         # 2) Si no hay pelota pero sí persona -> evitar
-        # 3) Si no hay nada -> spin
+        # 3) Si no hay nada -> stop
 
         if ball_pose is not None:
             lin, ang = self.ball_commands(ball_pose, prev_ball_pose)
@@ -123,15 +136,15 @@ class FollowAndAvoid(Node):
         if prev_pose is None:
             prev_pose = pose  # evitar None en primer frame
 
-        error = self.img_center_x - pose[0]
+        error = self.img_center_x//2 - pose[0]
         prev_error = self.img_center_x - prev_pose[0]
         delta_error = error - prev_error
         error_sum = error + prev_error
 
         angular_vel = -(
-            self.person_K_p * error +
-            self.person_K_d * delta_error +
-            self.person_K_i * error_sum
+            self.angular_ball_K_p * error +
+            self.angular_person_K_d * delta_error +
+            self.angular_person_K_i * error_sum
         )
 
         linear_vel = 0.0  # retroceso opcional
@@ -150,9 +163,9 @@ class FollowAndAvoid(Node):
 
         # Girar hacia la pelota
         angular_vel = (
-            self.ball_K_p * error +
-            self.ball_K_d * delta_error +
-            self.ball_K_i * error_sum
+            self.angular_ball_K_p * error +
+            self.angular_ball_K_d * delta_error +
+            self.angular_ball_K_i * error_sum
         )
 
         linear_vel = 0.0  # avanzar según área opcional
