@@ -13,6 +13,7 @@ follower_and_avoider:
 
     angular_ball_proportional_gain: 0.01
     angular_ball_integral_gain: 0.0001
+    # 0.12 ganancia derivativa funciona decente
     angular_ball_derivative_gain: 0.02
 
     angular_person_proportional_gain: 1.0
