@@ -14,6 +14,16 @@ class FollowAndAvoid(Node):
         self.ball_pose = None
         self.person_pose = None
 
+        # PID memory 
+        self.ball_integral = 0.0
+        self.ball_prev_error = 0.0
+
+        self.dist_integral = 0.0
+        self.dist_prev_error = 0.0
+
+        self.prev_time = self.get_clock().now().nanoseconds
+
+
         # Subs y pubs
         self.bb_sub = self.create_subscription(
             Detection2DArray,
@@ -28,22 +38,29 @@ class FollowAndAvoid(Node):
         )
 
         # Parámetros
+        self.declare_parameter('reference_area', 20000.0)        
+
         self.declare_parameter('max_angular', 2.0)
         self.declare_parameter('max_linear', 1.5)
+
 
         self.declare_parameter('ball_proportional_gain',    1.0)
         self.declare_parameter('ball_integral_gain',        1.0)
         self.declare_parameter('ball_derivative_gain',      1.0)
+
+
         self.declare_parameter('person_proportional_gain',  1.0)
         self.declare_parameter('person_integral_gain',      1.0)
         self.declare_parameter('person_derivative_gain',    1.0)
 
         self.max_angular = self.get_parameter('max_angular').value
         self.max_linear = self.get_parameter('max_linear').value
+        self.area_ref    = self.get_parameter('reference_area').value
 
         self.ball_K_p = self.get_parameter('ball_proportional_gain').value
         self.ball_K_i = self.get_parameter('ball_integral_gain').value
         self.ball_K_d = self.get_parameter('ball_derivative_gain').value
+
         self.person_K_p = self.get_parameter('person_proportional_gain').value
         self.person_K_i = self.get_parameter('person_integral_gain').value
         self.person_K_d = self.get_parameter('person_derivative_gain').value
@@ -143,19 +160,53 @@ class FollowAndAvoid(Node):
         if prev_pose is None:
             prev_pose = pose 
 
+        # Modulo tempotal para dt
+        now = self.get_clock().now().nanoseconds
+        dt = (now - self.prev_time) * 1e-9
+        dt = max(dt, 1e-6)
+        self.prev_time = now
+
+        #  CONTROL ANGULAR
         error = self.img_center_x//2 - pose[0]
-        prev_error = self.img_center_x//2 - prev_pose[0]
-        delta_error = error - prev_error
-        error_sum = error + prev_error
+        
+         # Integral with anti-windup
+        self.ball_integral += error * dt
+        self.ball_integral = max(min(self.ball_integral, 1000), -1000)
+
+        # DERIVATIVO
+        deriv = (error - self.ball_prev_error) / dt
+        self.ball_prev_error = error
 
         # Girar hacia la pelota
         angular_vel = (
             self.ball_K_p * error +
-            self.ball_K_d * delta_error +
-            self.ball_K_i * error_sum
+            self.ball_K_i * self.ball_integral +
+            self.ball_K_d * deriv
         )
 
-        linear_vel = 0.0  # avanzar según área opcional
+        # ---------------------------
+        #     LINEAR PID (distance)
+        # ---------------------------
+        area = pose[1]
+        dist_error = self.area_ref - area
+
+        self.dist_integral += dist_error * dt
+        self.dist_integral = max(min(self.dist_integral, 50000), -50000)
+
+        dist_deriv = (dist_error - self.dist_prev_error) / dt
+        self.dist_prev_error = dist_error
+
+        linear_vel = (
+            self.dist_K_p * dist_error +
+            self.dist_K_i * self.dist_integral +
+            self.dist_K_d * dist_deriv
+        )
+
+        # Do not go backwards on noise
+        confidence = pose[2]
+        if confidence <= 0.65:
+            linear_vel = 0.0
+
 
         return self.vel_limiter(linear_vel, angular_vel)
 
