@@ -67,15 +67,16 @@ class FollowAndAvoid(Node):
         for detection in msg.detections:
             for result in detection.results:
                 label = result.hypothesis.class_id
+                conf = result.hypothesis.score
 
                 cx = detection.bbox.center.position.x
                 area = detection.bbox.size_x * detection.bbox.size_y
 
                 if label == 'ball':
-                    ball_pose = [cx, area]
+                    ball_pose = [cx, area, conf]
                 elif label == 'person':
                     pass
-                    # person_pose = [cx, area]
+                    # person_pose = [cx, area, conf]
 
         # Lógica de comportamiento:
         # 1) Si hay pelota -> seguir
