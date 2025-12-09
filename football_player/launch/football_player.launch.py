@@ -13,7 +13,7 @@ def generate_launch_description():
     pt_path = PathJoinSubstitution([
         FindPackageShare(pkg_name),
         "params",
-        "best.pt"
+        "best_micro.pt"
     ])
     controller_node = Node(
         package=pkg_name,

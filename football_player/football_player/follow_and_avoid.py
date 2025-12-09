@@ -13,13 +13,18 @@ class FollowAndAvoid(Node):
         # Memoria de posiciones previas
         self.ball_pose = None
         self.person_pose = None
-        self.prev_area = None
+        self.ball_prev_area = None
+        self.person_prev_area = None
         # PID memory 
         self.ball_integral = 0.0
         self.ball_prev_error = 0.0
+        self.ball_dist_integral = 0.0
+        self.ball_dist_prev_error = 0.0
 
-        self.dist_integral = 0.0
-        self.dist_prev_error = 0.0
+        self.person_integral = 0.0
+        self.person_prev_error = 0.0
+        self.person_dist_integral = 0.0
+        self.person_dist_prev_error = 0.0
 
         self.prev_time = self.get_clock().now().nanoseconds
 
@@ -38,7 +43,8 @@ class FollowAndAvoid(Node):
         )
 
         # Parámetros
-        self.declare_parameter('reference_area', 20000.0)        
+        self.declare_parameter('ball_reference_area', 20000.0)        
+        self.declare_parameter('person_reference_area', 200000.0)        
 
         self.declare_parameter('max_angular', 2.0)
         self.declare_parameter('max_linear', 1.5)
@@ -59,7 +65,8 @@ class FollowAndAvoid(Node):
 
         self.max_angular = self.get_parameter('max_angular').value
         self.max_linear = self.get_parameter('max_linear').value
-        self.area_ref    = self.get_parameter('reference_area').value
+        self.ball_area_ref    = self.get_parameter('ball_reference_area').value
+        self.person_area_ref    = self.get_parameter('person_reference_area').value
 
         self.angular_ball_K_p = self.get_parameter('angular_ball_proportional_gain').value
         self.angular_ball_K_i = self.get_parameter('angular_ball_integral_gain').value
@@ -102,8 +109,7 @@ class FollowAndAvoid(Node):
                 if label == 'ball':
                     ball_pose = [cx, area, conf]
                 elif label == 'person':
-                    pass
-                    # person_pose = [cx, area, conf]
+                    person_pose = [cx, area, conf]
 
         # Lógica de comportamiento:
         # 1) Si hay pelota -> seguir
@@ -112,9 +118,10 @@ class FollowAndAvoid(Node):
 
         if ball_pose is not None:
             lin, ang = self.ball_commands(ball_pose, prev_ball_pose)
+            # lin, ang = (0.0, 0.0)
         elif person_pose is not None:
-            pass
-            # lin, ang = self.human_commands(person_pose, prev_person_pose)
+            lin, ang = self.human_commands(person_pose, prev_person_pose)
+            # lin, ang = (0.0, 0.0)
         else:
             lin, ang = (0.0, 0.0)
 
@@ -149,19 +156,48 @@ class FollowAndAvoid(Node):
     def human_commands(self, pose, prev_pose):
         if prev_pose is None:
             prev_pose = pose  # evitar None en primer frame
+        person_error = self.img_center_x//2 - pose[0]
+        person_prev_error = self.img_center_x//2 - prev_pose[0]
+        person_delta_error = person_error - person_prev_error
 
-        error = self.img_center_x//2 - pose[0]
-        prev_error = self.img_center_x - prev_pose[0]
-        delta_error = error - prev_error
-        error_sum = error + prev_error
+        self.person_integral += person_error
+        self.person_integral = max(min(self.person_integral, 1000), -1000)
 
-        angular_vel = -(
-            self.angular_ball_K_p * error +
-            self.angular_person_K_d * delta_error +
-            self.angular_person_K_i * error_sum
+        angular_vel = (
+            self.angular_person_K_p * person_error +
+            self.angular_person_K_d * person_delta_error +
+            self.angular_person_K_i * self.person_integral
+        )
+        
+        # Do not go backwards on noise
+        area = pose[1]
+        if self.ball_prev_area is None:
+            area_prom = area
+        else:
+            area_prom = (area + self.ball_prev_area)/2
+            
+        dist_error = self.person_area_ref - area_prom
+
+
+        self.person_dist_integral += dist_error
+        self.person_dist_integral = max(min(self.person_dist_integral, 20000), -20000)
+
+        dist_deriv = (dist_error - self.person_dist_prev_error)
+        
+        linear_vel = (
+            self.linear_person_K_p * dist_error +
+            self.linear_person_K_i * self.person_dist_integral +
+            self.linear_person_K_d * dist_deriv
         )
 
-        linear_vel = 0.0  # retroceso opcional
+        # Do not go backwards on noise
+        confidence = pose[2]
+        if confidence <= 0.6:
+            linear_vel = 0.0
+            angular_vel = 0.0
+
+        self.person_dist_prev_error = dist_error
+        self.person_prev_area = area
 
         return self.vel_limiter(linear_vel, angular_vel)
 
@@ -170,7 +206,6 @@ class FollowAndAvoid(Node):
         if prev_pose is None:
             prev_pose = pose 
 
-        # Modulo tempotal para dt
 
         #  CONTROL ANGULAR
         error = self.img_center_x//2 - pose[0]
@@ -195,31 +230,32 @@ class FollowAndAvoid(Node):
         # ---------------------------
         area = pose[1]
         
-        if self.prev_area is None:
+        if self.ball_prev_area is None:
             area_prom = area
         else:
-            area_prom = (area + self.prev_area)/2
+            area_prom = (area + self.ball_prev_area)/2
             
-        dist_error = self.area_ref - area_prom
+        dist_error = self.ball_area_ref - area_prom
 
-        self.dist_integral += dist_error
-        self.dist_integral = max(min(self.dist_integral, 20000), -20000)
+        self.ball_dist_integral += dist_error
+        self.ball_dist_integral = max(min(self.ball_dist_integral, 20000), -20000)
 
-        dist_deriv = (dist_error - self.dist_prev_error)
+        dist_deriv = (dist_error - self.ball_dist_prev_error)
         
         linear_vel = (
             self.linear_ball_K_p * dist_error +
-            self.linear_ball_K_i * self.dist_integral +
+            self.linear_ball_K_i * self.ball_dist_integral +
             self.linear_ball_K_d * dist_deriv
         )
 
         # Do not go backwards on noise
         confidence = pose[2]
-        if confidence <= 0.75:
+        if confidence <= 0.6:
             linear_vel = 0.0
+            angular_vel = 0.0
 
-        self.dist_prev_error = dist_error
-        self.prev_area = area
+        self.ball_dist_prev_error = dist_error
+        self.ball_prev_area = area
 
         return self.vel_limiter(linear_vel, angular_vel)
         # return self.vel_limiter(0, angular_vel)
