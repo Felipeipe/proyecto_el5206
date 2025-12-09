@@ -5,6 +5,7 @@ from sensor_msgs.msg import Image
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose, BoundingBox2D
 from cv_bridge import CvBridge
 from ultralytics import YOLO
+from std_msgs.msg import Float32
 import cv2
 
 class YoloDetector(Node):
@@ -32,14 +33,18 @@ class YoloDetector(Node):
             '/detections',
             10
         )
+        # Publicador del área del humano
+        self.person_area_pub = self.create_publisher(
+            Float32,
+            '/person_area',
+            10
+        )
 
         self.get_logger().info("YOLO Detector Node iniciado.")
 
     def image_callback(self, msg):
-        # Convertir ROS Image -> OpenCV
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
-        # Inferencia YOLO
         results = self.model(frame, verbose=False)[0]
 
         detections_msg = Detection2DArray()
@@ -54,7 +59,6 @@ class YoloDetector(Node):
             detection = Detection2D()
             detection.header = msg.header
 
-            # Bounding Box
             bbox = BoundingBox2D()
             bbox.center.position.x = (x1 + x2) / 2.0
             bbox.center.position.y = (y1 + y2) / 2.0
@@ -62,7 +66,6 @@ class YoloDetector(Node):
             bbox.size_y = y2 - y1
             detection.bbox = bbox
 
-            # Hipótesis (clase y confianza)
             hypothesis = ObjectHypothesisWithPose()
             hypothesis.hypothesis.class_id = cls_name
             hypothesis.hypothesis.score = conf
@@ -70,8 +73,14 @@ class YoloDetector(Node):
 
             detections_msg.detections.append(detection)
 
-        self.publisher.publish(detections_msg)
+            area = (x2 - x1) * (y2 - y1)
 
+            if cls_name.lower() in ["person", "humano", "human"]:
+                msg_area = Float32()
+                msg_area.data = area
+                self.person_area_pub.publish(msg_area)
+
+        self.publisher.publish(detections_msg)
 def main(args=None):
     rclpy.init(args=args)
     node = YoloDetector()

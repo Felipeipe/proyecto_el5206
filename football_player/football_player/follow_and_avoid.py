@@ -177,6 +177,7 @@ class FollowAndAvoid(Node):
             area_prom = (area + self.ball_prev_area)/2
             
         dist_error = self.person_area_ref - area_prom
+        
 
 
         self.person_dist_integral += dist_error
@@ -184,12 +185,12 @@ class FollowAndAvoid(Node):
 
         dist_deriv = (dist_error - self.person_dist_prev_error)
         
-        linear_vel = (
-            self.linear_person_K_p * dist_error +
+        linear_vel_prev = (
+            self.linear_person_K_p * dist_error+
             self.linear_person_K_i * self.person_dist_integral +
             self.linear_person_K_d * dist_deriv
         )
-
+        linear_vel = 0.0 if dist_error > 0 else linear_vel_prev
         # Do not go backwards on noise
         confidence = pose[2]
         if confidence <= 0.6:
