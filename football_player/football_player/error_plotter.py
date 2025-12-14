@@ -74,12 +74,10 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
 
-    # -------- PLOT --------
     fig, (ax_lin, ax_ang) = plt.subplots(
         2, 1, figsize=(11, 8), sharex=True
     )
 
-    # -------- LINEAR ERROR --------
     ax_lin.plot(
         node.time_ball,
         node.ball_err_lin,
@@ -98,7 +96,6 @@ def main(args=None):
     ax_lin.grid(True)
     ax_lin.legend()
 
-    # -------- ANGULAR ERROR --------
     ax_ang.plot(
         node.time_ball,
         node.ball_err_ang,
@@ -122,7 +119,6 @@ def main(args=None):
 
     plt.tight_layout()
 
-    # -------- SAVE --------
     pkg_path = get_package_share_directory('football_player')
     plot_dir = os.path.join(pkg_path, 'plots')
     os.makedirs(plot_dir, exist_ok=True)

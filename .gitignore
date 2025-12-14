@@ -8,8 +8,8 @@ __pycache__/
 Balon-Person-YOLO-1/
 yolov8-ball-and-player-detection-1/
 runs/
-*.pt
 # Distribution / packaging
+*/bags/
 .Python
 build/
 develop-eggs/

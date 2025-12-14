@@ -10,12 +10,11 @@ class FollowAndAvoid(Node):
 
         self.img_center_x = 640  
 
-        # Memoria de posiciones previas
         self.ball_pose = None
         self.person_pose = None
         self.ball_prev_area = None
         self.person_prev_area = None
-        # PID memory 
+
         self.ball_integral = 0.0
         self.ball_prev_error = 0.0
         self.ball_dist_integral = 0.0
@@ -92,21 +91,15 @@ class FollowAndAvoid(Node):
         self.linear_person_K_d = self.get_parameter('linear_person_derivative_gain').value
 
 
-    # ------------------------
-    #        CALLBACK
-    # ------------------------
     def listener_callback(self, msg: Detection2DArray):
         vel = Twist()
 
-        # Guardar previas
         prev_ball_pose = self.ball_pose
         prev_person_pose = self.person_pose
 
-        # Reset actuales
         ball_pose = None
         person_pose = None
 
-        # Procesar detecciones
         for detection in msg.detections:
             for result in detection.results:
                 label = result.hypothesis.class_id
@@ -120,7 +113,6 @@ class FollowAndAvoid(Node):
                 elif label == 'person':
                     person_pose = [cx, area, conf]
 
-        # Lógica de comportamiento
         if ball_pose is not None:
             lin, ang = self.ball_commands(ball_pose, prev_ball_pose)
         elif person_pose is not None:
@@ -149,9 +141,6 @@ class FollowAndAvoid(Node):
         return mod_linear, mod_angular
 
 
-    # ------------------------
-    #  HUMAN COMMANDS
-    # ------------------------
     def human_commands(self, pose, prev_pose):
         if prev_pose is None:
             prev_pose = pose  
@@ -194,11 +183,10 @@ class FollowAndAvoid(Node):
             linear_vel = 0.0
             angular_vel = 0.0
 
-        # 👉 NUEVO: publicar errores de persona
         err_msg = Vector3()
-        err_msg.x = float(dist_error)        # error lineal
-        err_msg.y = float(person_error)      # error angular
-        err_msg.z = float(confidence)        # confianza (opcional)
+        err_msg.x = float(dist_error)        
+        err_msg.y = float(person_error)      
+        err_msg.z = float(confidence)        
         self.person_error_pub.publish(err_msg)
 
         self.person_dist_prev_error = dist_error
@@ -207,9 +195,6 @@ class FollowAndAvoid(Node):
         return self.vel_limiter(linear_vel, angular_vel)
 
 
-    # ------------------------
-    #  BALL COMMANDS
-    # ------------------------
     def ball_commands(self, pose, prev_pose):
         if prev_pose is None:
             prev_pose = pose 
@@ -253,11 +238,10 @@ class FollowAndAvoid(Node):
             linear_vel = 0.0
             angular_vel = 0.0
 
-        # 👉 NUEVO: publicar errores de pelota
         err_msg = Vector3()
-        err_msg.x = float(dist_error)        # error lineal
-        err_msg.y = float(error)             # error angular
-        err_msg.z = float(confidence)        # confianza
+        err_msg.x = float(dist_error)        
+        err_msg.y = float(error)             
+        err_msg.z = float(confidence)        
         self.ball_error_pub.publish(err_msg)
 
         self.ball_dist_prev_error = dist_error
