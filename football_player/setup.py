@@ -14,6 +14,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
         (os.path.join('share', package_name, 'params'), glob('params/*.yaml')),
+        (os.path.join('share', package_name, 'plots'), glob('plots/*.pdf')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -29,7 +30,8 @@ setup(
     entry_points={
         'console_scripts': [
             'follow_and_avoid = football_player.follow_and_avoid:main',
-            'detector = football_player.yolo_detector_node:main'
+            'detector = football_player.yolo_detector_node:main',
+            'plotter = football_player.error_plotter:main'
         ],
     },
 )
